@@ -7,7 +7,8 @@ LOG_FILE="/var/log/auth.log"
 ALERT_FILE="suspicious_activity.log"
 
 ADMIN_USER="admin"
-ADMIN_PASS="admin123"
+# Hashed password using SHA-256
+ADMIN_PASS_HASH="echo -n 'admin123' | openssl dgst -sha256 | sed 's/^.* //'"
 
 attempt_login() {
     local password=$1
@@ -33,13 +34,26 @@ login_system() {
     read -p "Username: " username
     read -sp "Password: " password
     echo
-    if [[ "$username" == "$ADMIN_USER" && "$password" == "$ADMIN_PASS" ]]; then
+    password_hash=$(echo -n "$password" | openssl dgst -sha256 | sed 's/^.* //')
+    if [[ "$username" == "$ADMIN_USER" && "$password_hash" == "$ADMIN_PASS_HASH" ]]; then
         echo "Login successful!"
         return 0
     else
         echo "Invalid credentials. Access denied."
         exit 1
     fi
+}
+
+encrypt_file() {
+    local file=$1
+    openssl enc -aes-256-cbc -salt -in "$file" -out "${file}.enc" -k secret
+    echo "File encrypted: ${file}.enc"
+}
+
+decrypt_file() {
+    local file=$1
+    openssl enc -aes-256-cbc -d -in "$file" -out "${file%.enc}" -k secret
+    echo "File decrypted: ${file%.enc}"
 }
 
 login_system
